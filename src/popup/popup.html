@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Save to Linkerlee</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main id="root">
+      <header>
+        <h1>Save to Linkerlee</h1>
+      </header>
+
+      <section id="needs-setup" hidden>
+        <p>This extension isn't configured yet.</p>
+        <button type="button" id="open-options">Open options</button>
+      </section>
+
+      <form id="form" hidden>
+        <p id="mode-banner" class="banner" hidden></p>
+
+        <label>
+          URL
+          <input id="url" type="url" readonly />
+        </label>
+
+        <label>
+          Title
+          <input id="title" type="text" placeholder="Page title" />
+        </label>
+
+        <div class="tags">
+          <div class="tags-header">
+            <span>Tags</span>
+            <span id="tags-status" class="muted"></span>
+          </div>
+          <div id="selected-tags" class="chips" aria-label="Selected tags"></div>
+          <input
+            id="tag-search"
+            type="text"
+            placeholder="Search or create a tag…"
+            autocomplete="off"
+          />
+          <ul id="tag-suggestions" class="dropdown" hidden></ul>
+          <p id="no-tags-hint" class="muted" hidden>
+            You don't have any tags yet — type a name and hit Enter to create
+            one.
+          </p>
+        </div>
+
+        <div class="row">
+          <button type="submit" id="save">Save</button>
+          <span id="form-status" class="muted"></span>
+        </div>
+      </form>
+    </main>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

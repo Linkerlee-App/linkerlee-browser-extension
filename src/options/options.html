@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Linkerlee Bookmarker — Options</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Linkerlee Bookmarker</h1>
+      <p class="lead">
+        Connect the extension to your Linkerlee account. Generate a token under
+        <em>Settings → API tokens</em> in Linkerlee, then paste it here.
+      </p>
+
+      <form id="form">
+        <label>
+          Base URL
+          <input
+            id="baseUrl"
+            type="url"
+            placeholder="https://linkerlee.com"
+            autocomplete="off"
+            required
+          />
+        </label>
+
+        <label>
+          API token
+          <input
+            id="token"
+            type="password"
+            placeholder="Paste token"
+            autocomplete="off"
+            required
+          />
+        </label>
+
+        <div class="row">
+          <button type="submit">Save</button>
+          <button type="button" id="test">Test connection</button>
+        </div>
+      </form>
+
+      <p id="status" class="status" hidden></p>
+    </main>
+
+    <script type="module" src="./options.ts"></script>
+  </body>
+</html>
