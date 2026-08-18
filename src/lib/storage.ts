@@ -3,7 +3,7 @@ export interface Config {
   token: string | null;
 }
 
-const DEFAULT_BASE_URL = 'https://linkerlee.com';
+export const DEFAULT_BASE_URL = 'https://linkerlee.com';
 const KEY = 'config';
 
 export async function getConfig(): Promise<Config> {
