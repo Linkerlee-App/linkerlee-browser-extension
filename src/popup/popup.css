@@ -182,6 +182,33 @@ button:hover:not([disabled]) {
   font-size: 0.8125rem;
 }
 
+/* The draft banner is a live region, so it stays in the tree and collapses when
+   empty rather than being toggled with `hidden` — screen readers differ on
+   whether they announce a region that was hidden when its text changed. */
+.banner:empty {
+  display: none;
+}
+
+/* Warning tint for the unsaved-draft banner, in the same orange as the
+   saved-link badge, so it reads as "attention" rather than as the accent-tinted
+   informational banner above it. */
+.banner-warn {
+  background: color-mix(in oklab, #fba115 22%, transparent);
+}
+
+/* Failure state for the same banner: the draft could not be kept, so the tint
+   moves from "attention" to the error red already used for form status. */
+.banner-error {
+  background: color-mix(in oklab, #dc2626 15%, transparent);
+  color: #dc2626;
+}
+
+/* box-shadow rather than a border, so the ring adds no layout shift when the
+   form goes from clean to dirty. */
+button[type='submit'].dirty {
+  box-shadow: 0 0 0 3px color-mix(in oklab, #fba115 45%, transparent);
+}
+
 .error {
   color: #dc2626;
   font-size: 0.8125rem;
