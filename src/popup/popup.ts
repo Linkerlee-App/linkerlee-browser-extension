@@ -1,4 +1,11 @@
-import { createLink, findLink, getAllTags, suggestTags, updateLink } from '../lib/api';
+import {
+  createLink,
+  deleteLink,
+  findLink,
+  getAllTags,
+  suggestTags,
+  updateLink,
+} from '../lib/api';
 import { clearDraft, getDraft, mergeDraft, saveDraft, type FormState } from '../lib/drafts';
 import { getConfig } from '../lib/storage';
 import { ApiError, type ExistingLink, type Tag } from '../lib/types';
@@ -17,6 +24,10 @@ const noTagsHint = document.getElementById('no-tags-hint') as HTMLElement;
 const saveBtn = document.getElementById('save') as HTMLButtonElement;
 const formStatusEl = document.getElementById('form-status') as HTMLElement;
 const draftWarning = document.getElementById('draft-warning') as HTMLParagraphElement;
+const removeBtn = document.getElementById('remove') as HTMLButtonElement;
+const removeConfirm = document.getElementById('remove-confirm') as HTMLElement;
+const removeYesBtn = document.getElementById('remove-yes') as HTMLButtonElement;
+const removeNoBtn = document.getElementById('remove-no') as HTMLButtonElement;
 
 const allTags = new Map<number, Tag>();
 const selectedIds = new Set<number>();
@@ -47,6 +58,8 @@ let notice: string | null = null;
 let titleTouched = false;
 /** Bumped on every pass, so a late storage failure knows it is stale. */
 let syncGeneration = 0;
+/** A write is in flight. Saving and removing must not race for the same link. */
+let busy = false;
 
 openOptionsBtn.addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
@@ -380,6 +393,8 @@ function applyExistingLink(link: ExistingLink): void {
   modeBanner.hidden = false;
   modeBanner.textContent = 'Already bookmarked — saving will update it.';
   saveBtn.textContent = 'Update';
+  // Only reachable once we know there is something to remove.
+  removeBtn.hidden = false;
 }
 
 async function init(): Promise<void> {
@@ -469,9 +484,32 @@ async function init(): Promise<void> {
   }
 
   // Only now: a change made from here on is the user's, and the draft that was
-  // on disk has had its chance to come back.
+  // on disk has had its chance to come back. Removing is armed at the same
+  // moment, so it can never run against a draft that has not been read yet.
   draftReady = true;
+  removeBtn.disabled = false;
   syncDraftState();
+}
+
+/**
+ * Surface a failed write: a field error if the server gave one, else its
+ * message. Returns whether it was an auth failure, which the caller uses to
+ * leave the button disabled — retrying with the same bad token cannot help.
+ */
+function reportWriteFailure(err: unknown): boolean {
+  if (err instanceof ApiError) {
+    if (err.status === 401 || err.status === 403) {
+      // The one failure the user can act on — say how, as init() does, rather
+      // than passing through whatever the server said.
+      setFormStatus('Auth failed. Update your token in options.', 'error');
+      return true;
+    }
+    const firstFieldError = Object.values(err.fieldErrors)[0]?.[0];
+    setFormStatus(firstFieldError ?? err.message, 'error');
+    return false;
+  }
+  setFormStatus((err as Error).message, 'error');
+  return false;
 }
 
 function handleApiFailure(err: unknown, prefix: string): void {
@@ -484,9 +522,100 @@ function handleApiFailure(err: unknown, prefix: string): void {
   setFormStatus(`${prefix}: ${message}`, 'error');
 }
 
+function showRemoveConfirm(show: boolean): void {
+  // The whole row swaps to the question: "Save" sitting beside "Remove this
+  // bookmark? Remove Cancel" reads as a third answer to it, and does not fit
+  // the popup's width either.
+  removeConfirm.hidden = !show;
+  removeBtn.hidden = show;
+  saveBtn.hidden = show;
+}
+
+removeBtn.addEventListener('click', () => {
+  showRemoveConfirm(true);
+  // Land on Cancel, so a stray Enter or Space does not confirm the destructive
+  // half of a question the user has only just been asked.
+  removeNoBtn.focus();
+});
+
+removeNoBtn.addEventListener('click', () => {
+  showRemoveConfirm(false);
+  removeBtn.focus();
+});
+
+removeYesBtn.addEventListener('click', async () => {
+  if (busy || existing === null || draftUrl === null) return;
+
+  busy = true;
+  removeYesBtn.disabled = true;
+  removeNoBtn.disabled = true;
+  setFormStatus('Removing…');
+
+  const url = draftUrl;
+
+  try {
+    await deleteLink(existing.id);
+  } catch (err) {
+    // Already gone is the outcome the user asked for, not a failure.
+    if (!(err instanceof ApiError && err.status === 404)) {
+      const authFailed = reportWriteFailure(err);
+      busy = false;
+      removeNoBtn.disabled = false;
+      removeYesBtn.disabled = authFailed;
+      removeBtn.disabled = authFailed;
+      // The button that took the click is gone or disabled; leave focus
+      // somewhere useful rather than on <body>.
+      removeNoBtn.focus();
+      return;
+    }
+  }
+
+  setFormStatus('Removed. Recoverable from your Linkerlee trash.', 'ok');
+
+  // Back to an unsaved page, so nothing here is an unsaved edit any more.
+  // Cleared directly rather than through the dirty check: syncDraftState() is
+  // inert until init() finishes, and the button is reachable before that — a
+  // draft left behind would be restored onto a bookmark that no longer exists.
+  existing = null;
+  restored = false;
+  restoreNote = '';
+  notice = null;
+  baseline = snapshot();
+  clearDraftWarning();
+  saveBtn.classList.remove('dirty');
+  clearDraft(url).catch((err: unknown) => {
+    console.warn('[linkerlee] failed to drop the draft of a removed link', err);
+  });
+
+  showRemoveConfirm(false);
+  removeBtn.hidden = true;
+  modeBanner.hidden = true;
+  saveBtn.textContent = 'Save';
+  // The form still holds the removed link's tags, and `existing` is now null, so
+  // a click here would re-create what was just deleted.
+  saveBtn.disabled = true;
+
+  if (activeTabId !== null) {
+    chrome.runtime.sendMessage({
+      type: 'refresh-badge',
+      tabId: activeTabId,
+      url: urlInput.value,
+    });
+  }
+  // Longer than the save path's: this is the only place the user is told the
+  // removal can be undone.
+  setTimeout(() => window.close(), 1600);
+});
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  // A hidden submit button is still the form's default button, so Enter in the
+  // title would otherwise save the very bookmark the user is being asked about.
+  if (busy || !removeConfirm.hidden) return;
+
+  busy = true;
   saveBtn.disabled = true;
+  removeBtn.disabled = true;
   setFormStatus(existing ? 'Updating…' : 'Saving…');
 
   // Read before the request, not after it: the form stays editable while the
@@ -513,16 +642,9 @@ form.addEventListener('submit', async (event) => {
     }
     saved = true;
   } catch (err) {
-    saveBtn.disabled = false;
-    if (err instanceof ApiError) {
-      const firstFieldError = Object.values(err.fieldErrors)[0]?.[0];
-      setFormStatus(firstFieldError ?? err.message, 'error');
-      if (err.status === 401 || err.status === 403) {
-        saveBtn.disabled = true;
-      }
-    } else {
-      setFormStatus((err as Error).message, 'error');
-    }
+    saveBtn.disabled = reportWriteFailure(err);
+    removeBtn.disabled = saveBtn.disabled;
+    busy = false;
   }
 
   // Outside the try: a fault in this bookkeeping must not be reported as a

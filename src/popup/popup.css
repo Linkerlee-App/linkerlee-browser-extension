@@ -4,6 +4,13 @@
   font-size: 14px;
 }
 
+/* An author `display` beats the UA stylesheet's [hidden] rule, so any element
+   given a display here would stay on screen while hidden. That silently removed
+   the whole confirmation step once; make hidden mean hidden. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   width: 360px;
@@ -167,6 +174,26 @@ button[disabled] {
 
 button:hover:not([disabled]) {
   filter: brightness(0.97);
+}
+
+/* Secondary to Save: a destructive action should be reachable without being the
+   thing the eye lands on first, so it keeps the plain button face and carries
+   the weight in its text and border only. */
+button.danger {
+  color: #dc2626;
+  border-color: color-mix(in oklab, #dc2626 35%, transparent);
+}
+
+/* Wraps, because "Remove this bookmark?" plus two buttons does not fit the
+   popup's 360px on one line at larger text sizes. Note the [hidden] rule at the
+   top of this file is what keeps this display declaration from overriding the
+   hidden attribute. */
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
 }
 
 .muted {
