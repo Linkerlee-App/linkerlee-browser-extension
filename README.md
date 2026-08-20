@@ -46,3 +46,8 @@ extension loaded from `dist/` in a browser.
   to addons.mozilla.org, including the reviewer notes and the two expected lint
   warnings.
 - [`CHANGELOG.md`](CHANGELOG.md) — user-facing changes per version.
+
+## License
+
+[MIT](LICENSE). The extension is a client for Linkerlee; your use of the service
+itself is governed by its own terms and privacy policy.
