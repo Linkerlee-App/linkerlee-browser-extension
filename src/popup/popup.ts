@@ -21,6 +21,8 @@ const formStatusEl = document.getElementById('form-status') as HTMLElement;
 const draftWarning = document.getElementById('draft-warning') as HTMLParagraphElement;
 const platformLink = document.getElementById('platform-link') as HTMLAnchorElement;
 const setupPlatformLink = document.getElementById('setup-platform-link') as HTMLAnchorElement;
+const versionEl = document.getElementById('version') as HTMLElement;
+const setupVersionEl = document.getElementById('setup-version') as HTMLElement;
 
 const allTags = new Map<number, Tag>();
 const selectedIds = new Set<number>();
@@ -67,6 +69,13 @@ function platformUrl(baseUrl: string): string {
   } catch {
     return new URL(DASHBOARD_PATH, DEFAULT_BASE_URL).toString();
   }
+}
+
+// Read from the manifest rather than written here, so it cannot drift from what
+// the browser actually installed. Set before init() runs: it needs no config, and
+// the setup screen is exactly where someone is most likely to be asked for it.
+for (const el of [versionEl, setupVersionEl]) {
+  el.textContent = `v${chrome.runtime.getManifest().version}`;
 }
 
 for (const link of [platformLink, setupPlatformLink]) {
