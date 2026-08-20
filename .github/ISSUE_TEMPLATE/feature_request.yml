@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest something the extension should do
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation, not the solution.
+      placeholder: I save a lot of pages from the keyboard and reaching for the toolbar icon breaks my flow.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where does this belong?
+      description: |
+        Anything needing new data or a new endpoint has to happen in the platform first.
+      options:
+        - The extension
+        - The LinkerLee platform or its API
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Would you be willing to work on this?
+      options:
+        - label: I would be interested in opening a PR for it
+          required: false

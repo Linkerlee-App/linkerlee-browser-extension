@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: LinkerLee platform issues
+    url: https://github.com/linkerlee-app/linkerlee/issues
+    about: Bugs in the web app, the API, or anything server-side belong there.
+  - name: Report a security vulnerability
+    url: https://github.com/linkerlee-app/linkerlee-browser-extension/blob/main/SECURITY.md
+    about: Please report security problems privately, not as a public issue.
+  - name: API reference
+    url: https://github.com/linkerlee-app/linkerlee/blob/main/docs/API.md
+    about: The endpoints this extension consumes, and their documented behaviour.
