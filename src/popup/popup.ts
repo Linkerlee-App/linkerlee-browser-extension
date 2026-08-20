@@ -10,6 +10,7 @@ import { clearDraft, getDraft, mergeDraft, saveDraft, type FormState } from '../
 import { hostLabel, isDefaultHost } from '../lib/permissions';
 import { DEFAULT_BASE_URL, getConfig } from '../lib/storage';
 import { ApiError, type ExistingLink, type Tag } from '../lib/types';
+import { isSaveableUrl } from '../lib/urls';
 
 const DASHBOARD_PATH = '/dashboard';
 
@@ -466,7 +467,11 @@ async function init(): Promise<void> {
   showForm();
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+  // The same rule the badge uses. Skipping only chrome:// and
+  // chrome-extension:// left about: and file:// pages to be sent for tag
+  // suggestions and bookmark lookup — a local file path is not something to hand
+  // a server.
+  if (!isSaveableUrl(tab?.url)) {
     setFormStatus('No saveable URL in the active tab.', 'error');
     saveBtn.disabled = true;
     return;
