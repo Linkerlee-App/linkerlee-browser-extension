@@ -12,9 +12,27 @@
         <h1>Save to Linkerlee</h1>
       </header>
 
+      <!-- Outside both sections: the destination matters on the setup screen too,
+           and that path returns before the form is ever shown. -->
+      <p id="host-banner" class="banner banner-host"></p>
+
       <section id="needs-setup" hidden>
-        <p>This extension isn't configured yet.</p>
+        <!-- Filled by the popup: "not configured yet" is only one of the reasons
+             saving is impossible, and the others need naming to be fixable. -->
+        <p id="setup-reason">This extension isn't configured yet.</p>
         <button type="button" id="open-options">Open options</button>
+        <div class="footer">
+          <a
+            id="setup-platform-link"
+            class="backlink"
+            href="https://linkerlee.com/dashboard"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Get your API token on Linkerlee ↗
+          </a>
+          <span id="setup-version" class="version"></span>
+        </div>
       </section>
 
       <form id="form" hidden>
@@ -49,9 +67,36 @@
           </p>
         </div>
 
+        <p id="draft-warning" class="banner banner-warn" role="status"></p>
+
         <div class="row">
           <button type="submit" id="save">Save</button>
-          <span id="form-status" class="muted"></span>
+          <button type="button" id="remove" class="danger" hidden disabled>Remove</button>
+          <span
+            id="remove-confirm"
+            class="confirm"
+            role="group"
+            aria-labelledby="remove-question"
+            hidden
+          >
+            <span id="remove-question">Remove this bookmark?</span>
+            <button type="button" id="remove-yes" class="danger">Yes, remove</button>
+            <button type="button" id="remove-no">Cancel</button>
+          </span>
+          <span id="form-status" class="muted" role="status"></span>
+        </div>
+
+        <div class="footer">
+          <a
+            id="platform-link"
+            class="backlink"
+            href="https://linkerlee.com/dashboard"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open your Linkerlee account ↗
+          </a>
+          <span id="version" class="version"></span>
         </div>
       </form>
     </main>

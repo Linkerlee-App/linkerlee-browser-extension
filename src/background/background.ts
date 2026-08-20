@@ -1,19 +1,15 @@
 import { findLink } from '../lib/api';
 import { getConfig } from '../lib/storage';
 import { ApiError } from '../lib/types';
+import { isSaveableUrl } from '../lib/urls';
 
 const BADGE_TEXT = '✓';
 const BADGE_COLOR = '#fba115';
 
-function isSaveable(url: string | undefined): url is string {
-  if (!url) return false;
-  return /^https?:\/\//.test(url);
-}
-
 async function refreshBadge(tabId: number, url: string | undefined): Promise<void> {
   await chrome.action.setBadgeText({ tabId, text: '' });
 
-  if (!isSaveable(url)) return;
+  if (!isSaveableUrl(url)) return;
 
   const cfg = await getConfig();
   if (!cfg.token) return;
@@ -25,7 +21,11 @@ async function refreshBadge(tabId: number, url: string | undefined): Promise<voi
       await chrome.action.setBadgeBackgroundColor({ tabId, color: BADGE_COLOR });
     }
   } catch (err) {
-    if (!(err instanceof ApiError) || err.status >= 500) {
+    // status 0 covers the local refusals — no token, an unusable base URL, or no
+    // permission for the configured host. Those are worth a line: this worker
+    // runs on every tab switch with no UI, so otherwise the badge simply stops
+    // working and says nothing. The messages name only the host, never the token.
+    if (!(err instanceof ApiError) || err.status === 0 || err.status >= 500) {
       console.warn('[linkerlee] badge refresh failed', err);
     }
   }

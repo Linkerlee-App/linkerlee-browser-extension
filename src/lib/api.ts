@@ -1,3 +1,4 @@
+import { hasHostAccess, hostLabel } from './permissions';
 import { getConfig } from './storage';
 import {
   ApiError,
@@ -22,7 +23,34 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(url, { ...init, headers });
+  // Checked before the request, not after it fails. Missing host access does not
+  // stop the browser dispatching anything — it only stops us reading the reply —
+  // so a request issued without the grant still puts the page URL on the wire in
+  // the preflight, and the token too if the far end answers with permissive CORS
+  // headers. Two cases make that concrete: a host whose access the user later
+  // revoked, and an upgrade where a self-hosted URL was already stored from
+  // before any of this existed. Neither ever prompts, so neither has a grant.
+  const host = hostLabel(cfg.baseUrl);
+  if (host === null) {
+    throw new ApiError(
+      'The base URL must be an https:// address. Fix it in the extension options.',
+      0,
+    );
+  }
+  if (!(await hasHostAccess(cfg.baseUrl))) {
+    throw new ApiError(
+      `The extension isn't allowed to reach ${host}. Open the options page and save the URL again to grant access.`,
+      0,
+    );
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, headers });
+  } catch (err) {
+    // Now unambiguous: access is granted, so this is the network.
+    throw new ApiError(`Could not reach ${host}: ${(err as Error).message}`, 0);
+  }
 
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
@@ -82,4 +110,8 @@ export async function updateLink(id: number, payload: UpdateLinkPayload): Promis
     method: 'PUT',
     body: JSON.stringify(payload),
   });
+}
+
+export async function deleteLink(id: number): Promise<void> {
+  await apiFetch(`/api/links/${id}`, { method: 'DELETE' });
 }

@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Also proves the postbuild manifest patch still runs, which is what adds
+      # the Firefox background.scripts fallback.
+      - name: Build
+        run: npm run build
+
+      # 2 warnings are the known Firefox baseline; see AMO-SUBMISSION.md.
+      # Errors fail the job, warnings do not.
+      - name: Lint the packaged extension
+        run: npx --yes web-ext lint --source-dir=dist --self-hosted --warnings-as-errors=false
