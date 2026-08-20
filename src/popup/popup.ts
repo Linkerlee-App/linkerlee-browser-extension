@@ -1,6 +1,8 @@
 import { createLink, findLink, getAllTags, suggestTags, updateLink } from '../lib/api';
-import { getConfig } from '../lib/storage';
+import { DEFAULT_BASE_URL, getConfig } from '../lib/storage';
 import { ApiError, type ExistingLink, type Tag } from '../lib/types';
+
+const DASHBOARD_PATH = '/dashboard';
 
 const needsSetup = document.getElementById('needs-setup') as HTMLElement;
 const openOptionsBtn = document.getElementById('open-options') as HTMLButtonElement;
@@ -15,6 +17,8 @@ const tagsStatusEl = document.getElementById('tags-status') as HTMLElement;
 const noTagsHint = document.getElementById('no-tags-hint') as HTMLElement;
 const saveBtn = document.getElementById('save') as HTMLButtonElement;
 const formStatusEl = document.getElementById('form-status') as HTMLElement;
+const platformLink = document.getElementById('platform-link') as HTMLAnchorElement;
+const setupPlatformLink = document.getElementById('setup-platform-link') as HTMLAnchorElement;
 
 const allTags = new Map<number, Tag>();
 const selectedIds = new Set<number>();
@@ -26,6 +30,33 @@ let activeTabId: number | null = null;
 openOptionsBtn.addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
 });
+
+// getConfig() only strips a trailing slash on write, so baseUrl may still carry one;
+// new URL() keeps that from turning into a double slash. It also throws on an
+// unparseable baseUrl — reachable, because the options page's "Test connection"
+// stores the field without the form's type="url" validation. Falling back keeps a
+// bad value from throwing here and leaving init() with neither section shown.
+function platformUrl(baseUrl: string): string {
+  try {
+    return new URL(DASHBOARD_PATH, baseUrl).toString();
+  } catch {
+    return new URL(DASHBOARD_PATH, DEFAULT_BASE_URL).toString();
+  }
+}
+
+for (const link of [platformLink, setupPlatformLink]) {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    // Close only once the tab is actually open: window.close() destroys this
+    // document, so a rejected create would otherwise disappear without a trace.
+    chrome.tabs.create({ url: link.href }).then(
+      () => window.close(),
+      (err: unknown) => {
+        console.warn('[linkerlee] could not open platform link', err);
+      },
+    );
+  });
+}
 
 function normalize(name: string): string {
   return name.trim().toLowerCase();
@@ -187,6 +218,13 @@ function applyExistingLink(link: ExistingLink): void {
 
 async function init(): Promise<void> {
   const cfg = await getConfig();
+
+  // Set before the setup branch below — that path returns early, and the setup
+  // screen needs a working link to where the API token is generated.
+  const dashboardUrl = platformUrl(cfg.baseUrl);
+  platformLink.href = dashboardUrl;
+  setupPlatformLink.href = dashboardUrl;
+
   if (!cfg.token) {
     showSetup();
     return;
