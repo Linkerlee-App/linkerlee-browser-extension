@@ -1,4 +1,6 @@
 import { createLink, findLink, getAllTags, suggestTags, updateLink } from '../lib/api';
+import { clearDraft, getDraft, mergeDraft, saveDraft, type FormState } from '../lib/drafts';
+import { getConfig } from '../lib/storage';
 import { DEFAULT_BASE_URL, getConfig } from '../lib/storage';
 import { ApiError, type ExistingLink, type Tag } from '../lib/types';
 
@@ -17,6 +19,7 @@ const tagsStatusEl = document.getElementById('tags-status') as HTMLElement;
 const noTagsHint = document.getElementById('no-tags-hint') as HTMLElement;
 const saveBtn = document.getElementById('save') as HTMLButtonElement;
 const formStatusEl = document.getElementById('form-status') as HTMLElement;
+const draftWarning = document.getElementById('draft-warning') as HTMLParagraphElement;
 const platformLink = document.getElementById('platform-link') as HTMLAnchorElement;
 const setupPlatformLink = document.getElementById('setup-platform-link') as HTMLAnchorElement;
 
@@ -26,6 +29,29 @@ const newTagNames = new Set<string>();
 
 let existing: ExistingLink | null = null;
 let activeTabId: number | null = null;
+
+/**
+ * What the popup was *given* — the tab's title, then whatever the server adds as
+ * it loads. Anything that differs from this is the user's unsaved work.
+ *
+ * It is assigned before the API calls and updated as they land, rather than
+ * snapshotted from the form afterwards: the form is live throughout, and a
+ * snapshot taken at the end would quietly absorb anything typed during the load
+ * — the very work this feature exists to protect.
+ */
+let baseline: FormState | null = null;
+let draftUrl: string | null = null;
+
+/** Draft I/O stays off until init() has had its chance to restore one. */
+let draftReady = false;
+let restored = false;
+let restoreNote = '';
+/** A message that outlives the dirty/clean cycle (e.g. the feature is degraded). */
+let notice: string | null = null;
+/** Set once the user edits the title, so nothing loading late overwrites it. */
+let titleTouched = false;
+/** Bumped on every pass, so a late storage failure knows it is stale. */
+let syncGeneration = 0;
 
 openOptionsBtn.addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
@@ -99,6 +125,8 @@ function renderChips(): void {
   for (const name of newTagNames) {
     append(name, () => newTagNames.delete(name), true);
   }
+
+  syncDraftState();
 }
 
 function isAlreadySelected(name: string): boolean {
@@ -167,6 +195,11 @@ function createNewTag(name: string): void {
   renderDropdown();
 }
 
+titleInput.addEventListener('input', () => {
+  titleTouched = true;
+  syncDraftState();
+});
+
 tagSearchInput.addEventListener('focus', renderDropdown);
 tagSearchInput.addEventListener('input', renderDropdown);
 tagSearchInput.addEventListener('blur', () => {
@@ -204,13 +237,178 @@ function setFormStatus(text: string, kind: 'muted' | 'error' | 'ok' = 'muted'): 
   formStatusEl.className = kind;
 }
 
+function snapshot(): FormState {
+  return {
+    title: titleInput.value,
+    tagIds: [...selectedIds],
+    newTags: [...newTagNames],
+  };
+}
+
+function serialize(state: FormState): string {
+  return JSON.stringify({
+    title: state.title.trim(),
+    tagIds: [...state.tagIds].sort((a, b) => a - b),
+    newTags: [...state.newTags].sort(),
+  });
+}
+
+/**
+ * Writes the banner without re-announcing an unchanged sentence to a screen
+ * reader — role="status" makes every textContent write a live-region update.
+ *
+ * The element stays in the tree and empties instead of toggling `hidden` (CSS
+ * collapses it when empty): screen readers vary in whether they announce a live
+ * region that was hidden at the moment its text changed.
+ */
+function setDraftWarning(text: string, kind: 'warn' | 'error' = 'warn'): void {
+  draftWarning.className = kind === 'warn' ? 'banner banner-warn' : 'banner banner-error';
+  if (draftWarning.textContent !== text) draftWarning.textContent = text;
+}
+
+function clearDraftWarning(): void {
+  setDraftWarning('');
+}
+
+function droppedTagsNote(dropped: number): string {
+  return dropped === 1
+    ? ' 1 tag no longer exists and was dropped.'
+    : ` ${dropped} tags no longer exist and were dropped.`;
+}
+
+/** A message that survives the dirty/clean cycle — the feature itself is off or
+ *  degraded, which the user cannot discover any other way. */
+function showNotice(text: string): void {
+  notice = text;
+  setDraftWarning(text);
+}
+
+/**
+ * Single funnel for "does the form differ from what was loaded". Compares
+ * against the baseline rather than tracking a mutation flag, so undoing a change
+ * (adding a tag and removing it again) goes back to clean.
+ *
+ * Called from renderChips(), which every tag mutation already routes through,
+ * and from the title input. Inert until init() has finished restoring, so the
+ * loading form neither warns nor overwrites the draft it is about to read.
+ */
+function syncDraftState(): void {
+  if (!draftReady || baseline === null || draftUrl === null) return;
+
+  const current = snapshot();
+  const base = baseline;
+  const url = draftUrl;
+  const dirty = serialize(current) !== serialize(base);
+  // Storage settles after the fact, by which time the form may have moved on. A
+  // late failure must not paint a banner contradicting what is on screen now.
+  const generation = ++syncGeneration;
+
+  saveBtn.classList.toggle('dirty', dirty);
+
+  if (!dirty) {
+    restored = false;
+    restoreNote = '';
+    if (notice !== null) setDraftWarning(notice);
+    else clearDraftWarning();
+
+    clearDraft(url).catch((err: unknown) => {
+      console.warn('[linkerlee] failed to drop the saved draft', err);
+      if (generation !== syncGeneration) return;
+      setDraftWarning(
+        'Changes you undid may come back the next time you open this popup.',
+        'error',
+      );
+    });
+    return;
+  }
+
+  // Stays on the restored wording until the form goes clean again: further edits
+  // on top of a restored draft are still unsaved changes the popup brought back.
+  setDraftWarning(
+    restored
+      ? `Restored unsaved changes — not saved to Linkerlee yet.${restoreNote}`
+      : 'Unsaved changes — click Save to keep them.',
+  );
+
+  // Written on every change rather than on close: the popup is torn down without
+  // warning, and an unload-time storage write would not reliably land.
+  saveDraft(url, { state: current, base, savedAt: Date.now() }).catch((err: unknown) => {
+    console.warn('[linkerlee] failed to keep a draft', err);
+    if (generation !== syncGeneration) return;
+    // The banner promises the work comes back. It will not — say so, because the
+    // popup console this was logged to dies with the popup.
+    setDraftWarning("Couldn't keep a copy of these changes — save now or lose them.", 'error');
+  });
+}
+
+/** Re-apply a draft left behind when the popup was dismissed. See mergeDraft()
+ *  for why it is folded in as a delta rather than replayed wholesale. */
+async function restoreDraft(url: string, loaded: FormState): Promise<void> {
+  const draft = await getDraft(url);
+  if (!draft) return;
+
+  const merged = mergeDraft(draft, loaded, (id) => allTags.has(id));
+
+  // The dropdown is live by the time the read above resolves, so the user may
+  // have picked a tag while it was in flight. Same protection the title and the
+  // new-tag names already get.
+  const pickedMeanwhile = [...selectedIds].filter((id) => !loaded.tagIds.includes(id));
+
+  // A name that has since become a real tag is selected as that tag rather than
+  // created again — every interactive path enforces the same rule, and the
+  // server would otherwise be asked to create a duplicate.
+  const restoredNames: string[] = [];
+  const promoted: number[] = [];
+  for (const name of new Set([...merged.state.newTags, ...newTagNames])) {
+    const match = [...allTags.values()].find((tag) => normalize(tag.name) === normalize(name));
+    if (match) promoted.push(match.id);
+    else restoredNames.push(name);
+  }
+
+  const candidate: FormState = {
+    // Never overwrite something the user is already typing.
+    title: titleTouched ? titleInput.value : merged.state.title,
+    tagIds: [...new Set([...merged.state.tagIds, ...pickedMeanwhile, ...promoted])],
+    newTags: restoredNames,
+  };
+
+  // The link may have been saved elsewhere since; if the draft no longer adds
+  // anything, drop it rather than warning about nothing.
+  if (serialize(candidate) === serialize(loaded)) {
+    await clearDraft(url);
+    // Unless the only reason it adds nothing is that its tags were deleted —
+    // staying quiet there would read as "there was never anything pending".
+    if (merged.dropped > 0) {
+      showNotice(`Unsaved tags from earlier couldn't be restored:${droppedTagsNote(merged.dropped)}`);
+    }
+    return;
+  }
+
+  titleInput.value = candidate.title;
+  selectedIds.clear();
+  for (const id of candidate.tagIds) selectedIds.add(id);
+  newTagNames.clear();
+  for (const name of candidate.newTags) newTagNames.add(name);
+
+  restored = true;
+  restoreNote = merged.dropped > 0 ? droppedTagsNote(merged.dropped) : '';
+  renderChips();
+}
+
 function applyExistingLink(link: ExistingLink): void {
   existing = link;
-  if (link.title) titleInput.value = link.title;
+  if (link.title) {
+    // This lands after a network round trip, by which time the user may already
+    // be typing — take the server's title as the baseline either way, but only
+    // put it in the field if it isn't going to overwrite them.
+    if (!titleTouched) titleInput.value = link.title;
+    if (baseline !== null) baseline = { ...baseline, title: link.title };
+  }
   for (const tag of link.tags) {
     allTags.set(tag.id, tag);
     selectedIds.add(tag.id);
   }
+  if (baseline !== null) baseline = { ...baseline, tagIds: link.tags.map((tag) => tag.id) };
   modeBanner.hidden = false;
   modeBanner.textContent = 'Already bookmarked — saving will update it.';
   saveBtn.textContent = 'Update';
@@ -240,7 +438,9 @@ async function init(): Promise<void> {
 
   activeTabId = tab.id ?? null;
   urlInput.value = tab.url;
-  titleInput.value = tab.title ?? '';
+  if (!titleTouched) titleInput.value = tab.title ?? '';
+  draftUrl = tab.url;
+  baseline = { title: tab.title ?? '', tagIds: [], newTags: [] };
   renderChips();
 
   setTagsStatus('Loading…');
@@ -260,6 +460,11 @@ async function init(): Promise<void> {
     }
   } else {
     handleApiFailure(tagsResult.reason, 'Failed to load tags');
+    // Without the catalogue a selected tag can't be rendered or validated, so
+    // drafts stay off rather than overwriting a good one with a half-loaded
+    // form. Say so — silently dropping the protection is what this feature is
+    // meant to stop.
+    showNotice("Tags didn't load — changes here won't be kept if you close this.");
     return;
   }
 
@@ -268,11 +473,16 @@ async function init(): Promise<void> {
   }
 
   if (suggestionsResult.status === 'fulfilled') {
+    // Into the catalogue either way, so a suggested tag picked in an earlier
+    // popup can still be named — and therefore restored — in edit mode.
+    for (const tag of suggestionsResult.value) {
+      allTags.set(tag.id, tag);
+    }
     if (!existing) {
       for (const tag of suggestionsResult.value) {
-        allTags.set(tag.id, tag);
         selectedIds.add(tag.id);
       }
+      if (baseline !== null) baseline = { ...baseline, tagIds: [...selectedIds] };
     }
     setTagsStatus(
       existing
@@ -286,6 +496,21 @@ async function init(): Promise<void> {
   }
 
   renderChips();
+
+  try {
+    if (baseline !== null) await restoreDraft(tab.url, baseline);
+  } catch (err) {
+    // Malformed records are already dropped on read, so this is a real fault —
+    // don't block the form over it, but don't let the user assume a clean popup
+    // means there was nothing pending either.
+    console.warn('[linkerlee] failed to restore the saved draft', err);
+    showNotice("Couldn't check for unsaved changes from earlier.");
+  }
+
+  // Only now: a change made from here on is the user's, and the draft that was
+  // on disk has had its chance to come back.
+  draftReady = true;
+  syncDraftState();
 }
 
 function handleApiFailure(err: unknown, prefix: string): void {
@@ -303,31 +528,29 @@ form.addEventListener('submit', async (event) => {
   saveBtn.disabled = true;
   setFormStatus(existing ? 'Updating…' : 'Saving…');
 
+  // Read before the request, not after it: the form stays editable while the
+  // request is in flight, and this is what actually reaches the server.
+  const submitted = snapshot();
+  let saved = false;
+
   try {
     if (existing) {
       await updateLink(existing.id, {
-        title: titleInput.value.trim() || undefined,
-        tags: [...selectedIds],
-        newTags: [...newTagNames],
+        title: submitted.title.trim() || undefined,
+        tags: submitted.tagIds,
+        newTags: submitted.newTags,
       });
       setFormStatus('Updated.', 'ok');
     } else {
       await createLink({
         link: urlInput.value,
-        title: titleInput.value.trim() || undefined,
-        tags: [...selectedIds],
-        newTags: [...newTagNames],
+        title: submitted.title.trim() || undefined,
+        tags: submitted.tagIds,
+        newTags: submitted.newTags,
       });
       setFormStatus('Saved.', 'ok');
     }
-    if (activeTabId !== null) {
-      chrome.runtime.sendMessage({
-        type: 'refresh-badge',
-        tabId: activeTabId,
-        url: urlInput.value,
-      });
-    }
-    setTimeout(() => window.close(), 800);
+    saved = true;
   } catch (err) {
     saveBtn.disabled = false;
     if (err instanceof ApiError) {
@@ -340,6 +563,31 @@ form.addEventListener('submit', async (event) => {
       setFormStatus((err as Error).message, 'error');
     }
   }
+
+  // Outside the try: a fault in this bookkeeping must not be reported as a
+  // failed save, which would have the user click Save again and duplicate it.
+  if (!saved) return;
+
+  // What was submitted is on the server now, so it becomes the baseline. The
+  // funnel then clears the stored draft — or keeps one, if the user carried on
+  // typing while the request was in flight.
+  baseline = submitted;
+  restored = false;
+  restoreNote = '';
+  notice = null;
+  // Clear first: in the degraded mode where drafts never came up, syncDraftState
+  // is inert and would leave the old notice on screen.
+  clearDraftWarning();
+  syncDraftState();
+
+  if (activeTabId !== null) {
+    chrome.runtime.sendMessage({
+      type: 'refresh-badge',
+      tabId: activeTabId,
+      url: urlInput.value,
+    });
+  }
+  setTimeout(() => window.close(), 800);
 });
 
 void init();
