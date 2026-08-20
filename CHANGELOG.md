@@ -9,6 +9,19 @@ together, or the built extension ships mislabelled.
 
 Issue keys refer to the `COW` project in Linear.
 
+## [0.9.3] — 2026-08-20
+
+### Fixed
+
+- The popup no longer offers a save form when nothing can be saved. It treated
+  "configured" as "has a token", but a request is refused locally in three
+  cases: no token, a saved address that is not a usable https host, and a host
+  grant that was declined or later withdrawn. The last two became reachable
+  when self-hosted instances landed in 0.9.1 — the form appeared, tags were
+  picked and a title typed, and only Save revealed that nothing could reach the
+  server. The popup now asks all three questions up front and names the actual
+  problem, pointing at the options page when a grant is missing.
+
 ## [0.9.2] — 2026-08-20
 
 ### Fixed
