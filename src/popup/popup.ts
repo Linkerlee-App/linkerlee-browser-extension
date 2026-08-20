@@ -8,6 +8,7 @@ import {
 } from '../lib/api';
 import { clearDraft, getDraft, mergeDraft, saveDraft, type FormState } from '../lib/drafts';
 import { hostLabel, isDefaultHost } from '../lib/permissions';
+import { checkSetup, setupMessage, type SetupProblem } from '../lib/setup';
 import { DEFAULT_BASE_URL, getConfig } from '../lib/storage';
 import { ApiError, type ExistingLink, type Tag } from '../lib/types';
 import { isSaveableUrl } from '../lib/urls';
@@ -15,6 +16,7 @@ import { isSaveableUrl } from '../lib/urls';
 const DASHBOARD_PATH = '/dashboard';
 
 const needsSetup = document.getElementById('needs-setup') as HTMLElement;
+const setupReason = document.getElementById('setup-reason') as HTMLParagraphElement;
 const openOptionsBtn = document.getElementById('open-options') as HTMLButtonElement;
 const form = document.getElementById('form') as HTMLFormElement;
 const modeBanner = document.getElementById('mode-banner') as HTMLParagraphElement;
@@ -112,7 +114,8 @@ function normalize(name: string): string {
   return name.trim().toLowerCase();
 }
 
-function showSetup(): void {
+function showSetup(reason: string): void {
+  setupReason.textContent = reason;
   needsSetup.hidden = false;
   form.hidden = true;
 }
@@ -460,8 +463,25 @@ async function init(): Promise<void> {
   platformLink.href = dashboardUrl;
   setupPlatformLink.href = dashboardUrl;
 
-  if (!cfg.token) {
-    showSetup();
+  // Every local refusal apiFetch() would make, asked before the form is built:
+  // a missing token, an unusable base URL, or a host grant that was declined or
+  // later withdrawn all leave a form that cannot save anything. Showing it
+  // anyway invites the user to pick tags and type a title, then answers with an
+  // error on Save — and, in the withdrawn-grant case, tells them nothing about
+  // where the fix is.
+  let problem: SetupProblem | null = null;
+  try {
+    problem = await checkSetup(cfg);
+  } catch (err) {
+    // Fail open. A permissions query that throws is not evidence the extension
+    // is unconfigured, and hiding the form over it would leave the popup with
+    // nothing on screen but a setup notice that may be wrong. apiFetch() makes
+    // the same three checks before anything reaches the network, so the worst
+    // case is the old behaviour: an error on Save rather than one up front.
+    console.warn('[linkerlee] could not check whether the extension is set up', err);
+  }
+  if (problem !== null) {
+    showSetup(setupMessage(problem, host));
     return;
   }
   showForm();

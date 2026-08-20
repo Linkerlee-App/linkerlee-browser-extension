@@ -161,6 +161,13 @@ input[readonly] {
   border-top: 1px solid color-mix(in oklab, CanvasText 15%, transparent);
 }
 
+/* The setup screen is plain block flow with no gap of its own, so the footer
+   lands hard against the Open options button. The form above it gets its
+   breathing room from the grid gap; give this one the same distance. */
+#needs-setup .footer {
+  margin-top: 1rem;
+}
+
 /* Quieter than .muted: this is for reading back in a bug report, not something
    to draw the eye on every save. */
 .version {
