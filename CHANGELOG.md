@@ -9,6 +9,37 @@ together, or the built extension ships mislabelled.
 
 Issue keys refer to the `COW` project in Linear.
 
+## [0.9.1] — 2026-08-20
+
+### Added
+
+- The extension can reach a self-hosted Linkerlee. The Base URL field always
+  accepted any address, but only `linkerlee.com` was ever permitted, so anything
+  else failed as "Failed to fetch" — indistinguishable from a typo or a server
+  being down. Entering another https address now asks the browser for access to
+  that one host, and releases the previous one when it changes. Nothing is
+  granted at install: the default configuration still talks only to
+  linkerlee.com and prompts for nothing. (COW-56)
+- The instance you are saving to is named in the popup and in the options page
+  whenever it is not the default, so a redirected instance is visible rather
+  than something you have to go looking for. (COW-56)
+
+### Fixed
+
+- A failure to reach the configured instance now says what is wrong — that the
+  extension has not been allowed to reach that host, naming it — instead of
+  "Failed to fetch". The saved-link badge, which runs on every tab switch with
+  no interface of its own, logs the same rather than silently going blank.
+  (COW-56)
+
+### Security
+
+- `http://` base URLs are refused: the API token would otherwise cross the
+  network in plain text. So are addresses carrying credentials — a URL such as
+  `https://linkerlee.com@example.invalid` reads as the trusted host and resolves
+  to another — and hostnames that are not plain DNS labels, which is what keeps
+  a request for one concrete host from ever widening into a wildcard. (COW-56)
+
 ## [0.9.0] — 2026-08-20
 
 ### Added
