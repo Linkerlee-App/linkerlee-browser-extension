@@ -1,6 +1,5 @@
 import { createLink, findLink, getAllTags, suggestTags, updateLink } from '../lib/api';
 import { clearDraft, getDraft, mergeDraft, saveDraft, type FormState } from '../lib/drafts';
-import { getConfig } from '../lib/storage';
 import { DEFAULT_BASE_URL, getConfig } from '../lib/storage';
 import { ApiError, type ExistingLink, type Tag } from '../lib/types';
 
