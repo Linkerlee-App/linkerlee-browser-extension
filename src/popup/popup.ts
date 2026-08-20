@@ -7,6 +7,7 @@ import {
   updateLink,
 } from '../lib/api';
 import { clearDraft, getDraft, mergeDraft, saveDraft, type FormState } from '../lib/drafts';
+import { hostLabel, isDefaultHost } from '../lib/permissions';
 import { DEFAULT_BASE_URL, getConfig } from '../lib/storage';
 import { ApiError, type ExistingLink, type Tag } from '../lib/types';
 
@@ -26,6 +27,7 @@ const noTagsHint = document.getElementById('no-tags-hint') as HTMLElement;
 const saveBtn = document.getElementById('save') as HTMLButtonElement;
 const formStatusEl = document.getElementById('form-status') as HTMLElement;
 const draftWarning = document.getElementById('draft-warning') as HTMLParagraphElement;
+const hostBanner = document.getElementById('host-banner') as HTMLParagraphElement;
 const removeBtn = document.getElementById('remove') as HTMLButtonElement;
 const removeConfirm = document.getElementById('remove-confirm') as HTMLElement;
 const removeYesBtn = document.getElementById('remove-yes') as HTMLButtonElement;
@@ -440,8 +442,19 @@ function applyExistingLink(link: ExistingLink): void {
 async function init(): Promise<void> {
   const cfg = await getConfig();
 
-  // Set before the setup branch below — that path returns early, and the setup
-  // screen needs a working link to where the API token is generated.
+  // Both of these are set before the setup branch below, which returns early:
+  // the setup screen needs a working link to where the token is generated, and
+  // it is just as much a place where the destination host should be named.
+  // Through hostLabel(), never new URL() directly: a stored base URL is not
+  // guaranteed to parse, and a throw here would leave the popup showing neither
+  // the form nor the setup screen — including the button that opens Options.
+  const host = hostLabel(cfg.baseUrl);
+  if (host !== null && !isDefaultHost(cfg.baseUrl)) {
+    // A redirected instance receives the token and the URL of everything saved,
+    // so it should never be something the user has to go looking for.
+    hostBanner.textContent = `Saving to ${host}`;
+  }
+
   const dashboardUrl = platformUrl(cfg.baseUrl);
   platformLink.href = dashboardUrl;
   setupPlatformLink.href = dashboardUrl;

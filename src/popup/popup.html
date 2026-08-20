@@ -12,6 +12,10 @@
         <h1>Save to Linkerlee</h1>
       </header>
 
+      <!-- Outside both sections: the destination matters on the setup screen too,
+           and that path returns before the form is ever shown. -->
+      <p id="host-banner" class="banner banner-host"></p>
+
       <section id="needs-setup" hidden>
         <p>This extension isn't configured yet.</p>
         <button type="button" id="open-options">Open options</button>

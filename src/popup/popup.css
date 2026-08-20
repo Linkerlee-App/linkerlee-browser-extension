@@ -251,6 +251,14 @@ button.danger {
   display: none;
 }
 
+/* Where a self-hosted instance is named. Deliberately not a warning colour —
+   nothing is wrong — but it is on screen every time, because this is where the
+   token and every saved page are going. Empty for the default host. */
+.banner-host {
+  background: color-mix(in oklab, CanvasText 8%, transparent);
+  color: color-mix(in oklab, CanvasText 75%, transparent);
+}
+
 /* Warning tint for the unsaved-draft banner, in the same orange as the
    saved-link badge, so it reads as "attention" rather than as the accent-tinted
    informational banner above it. */
