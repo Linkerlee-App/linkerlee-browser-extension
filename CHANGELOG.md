@@ -9,6 +9,21 @@ together, or the built extension ships mislabelled.
 
 Issue keys refer to the `COW` project in Linear.
 
+## [0.9.2] — 2026-08-20
+
+### Fixed
+
+- The popup no longer sends the URL of a page on an internal scheme. Opening it
+  on an `about:` page in Firefox, or on a `file://` page in either browser, sent
+  that URL to the tag-suggestion and bookmark-lookup endpoints — including the
+  path of a local file. The saved-link badge had always refused those; the popup
+  skipped only `chrome://` and `chrome-extension://`, and the two had drifted.
+  Both now share one rule, which admits http(s) pages and nothing else. The
+  privacy policy already promised this behaviour. (COW-57)
+
+  Note this means a `file://` page can no longer be saved from the popup. It
+  could before, by sending the local path to the server.
+
 ## [0.9.1] — 2026-08-20
 
 ### Added
