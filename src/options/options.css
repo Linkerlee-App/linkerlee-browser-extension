@@ -92,3 +92,16 @@ button:hover {
 .status.error {
   background: color-mix(in oklab, #dc2626 20%, transparent);
 }
+
+/* The destination for the token and for every page URL the extension looks up,
+   so it stays on screen rather than being implied by a field. Collapses when
+   empty, which is the default-host case. */
+.host-note {
+  margin: -0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: color-mix(in oklab, CanvasText 65%, transparent);
+}
+
+.host-note:empty {
+  display: none;
+}
