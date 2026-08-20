@@ -145,9 +145,22 @@ input[readonly] {
 }
 
 .footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
   margin-top: 0.15rem;
   padding-top: 0.6rem;
   border-top: 1px solid color-mix(in oklab, CanvasText 15%, transparent);
+}
+
+/* Quieter than .muted: this is for reading back in a bug report, not something
+   to draw the eye on every save. */
+.version {
+  flex: none;
+  font-size: 0.75rem;
+  color: color-mix(in oklab, CanvasText 45%, transparent);
+  font-variant-numeric: tabular-nums;
 }
 
 .backlink {
