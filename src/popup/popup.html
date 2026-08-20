@@ -65,7 +65,19 @@
 
         <div class="row">
           <button type="submit" id="save">Save</button>
-          <span id="form-status" class="muted"></span>
+          <button type="button" id="remove" class="danger" hidden disabled>Remove</button>
+          <span
+            id="remove-confirm"
+            class="confirm"
+            role="group"
+            aria-labelledby="remove-question"
+            hidden
+          >
+            <span id="remove-question">Remove this bookmark?</span>
+            <button type="button" id="remove-yes" class="danger">Yes, remove</button>
+            <button type="button" id="remove-no">Cancel</button>
+          </span>
+          <span id="form-status" class="muted" role="status"></span>
         </div>
 
         <div class="footer">

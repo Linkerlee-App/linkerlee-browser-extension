@@ -83,3 +83,7 @@ export async function updateLink(id: number, payload: UpdateLinkPayload): Promis
     body: JSON.stringify(payload),
   });
 }
+
+export async function deleteLink(id: number): Promise<void> {
+  await apiFetch(`/api/links/${id}`, { method: 'DELETE' });
+}
