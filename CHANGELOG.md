@@ -9,6 +9,46 @@ together, or the built extension ships mislabelled.
 
 Issue keys refer to the `COW` project in Linear.
 
+## [0.9.0] — 2026-08-20
+
+### Added
+
+- Unsaved tag and title work is no longer lost when the popup closes. Clicking
+  outside an extension popup destroys it instantly, and MV3 offers no cancellable
+  close event, so a warning *at* close time is not possible. Instead the popup
+  warns while it is open — a banner and a ring on Save as soon as the form differs
+  from what was loaded — and keeps the draft, per URL, restoring it the next time
+  you open the popup on that page. The draft is folded back in as a delta rather
+  than replayed, because saving replaces the whole tag set and a stale replay would
+  delete tags added on the platform in the meantime. (COW-50)
+- A **Remove** button for a page that is already bookmarked, with an inline
+  "Remove this bookmark?" confirmation rather than a native dialog, which an
+  extension popup cannot show reliably. Removal is a soft delete and the status
+  says so — the link is recoverable from your Linkerlee trash. Needs the platform
+  running the matching `DELETE /api/links/{id}` endpoint. (COW-54)
+- The extension version in the popup footer, on both the form and the
+  not-yet-configured screen, read from the manifest so it cannot drift from what
+  the browser installed. (COW-55)
+
+### Fixed
+
+- The popup no longer paints its form before the script runs, and the
+  not-yet-configured screen no longer shows the whole form underneath its "this
+  extension isn't configured yet" message. `form { display: grid }` outranked the
+  browser's own `[hidden]` rule, so hiding the form did nothing. The same cascade
+  bug had silently removed the entire confirmation step from the new Remove
+  button. Hidden now means hidden. (COW-54)
+- `npm run typecheck` passes again. A merge resolved an import conflict by keeping
+  both sides, leaving `getConfig` imported twice; the build tolerated it, so
+  nothing went red on the way in.
+
+### Internal
+
+- Vitest, with the draft merge, the draft prune and the stored-record validation
+  under test — the logic where a mistake silently loses or deletes a user's tags.
+  There is still no CI, so `npm test`, `npm run typecheck`, `npm run build` and
+  `web-ext lint` remain a local discipline. (COW-53)
+
 ## [0.2.0] — 2026-08-18
 
 ### Added
