@@ -1,0 +1,77 @@
+name: Bug report
+description: Something in the extension does not work the way it should
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the **browser extension** repository. Bugs in the LinkerLee web app or its
+        API belong in [the main repository](https://github.com/linkerlee-app/linkerlee/issues).
+
+        Found a security problem? Do not file it here — see [SECURITY.md](../blob/main/SECURITY.md).
+
+        **Never paste your API token into an issue.** It grants write and delete access to
+        your links.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead.
+      placeholder: Saving a page cleared all the tags it already had.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Save a page with two tags
+        2. Open the popup on it again
+        3. Click Save without changing anything
+        4. Both tags are gone
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      description: Visible in chrome://extensions, or about:addons in Firefox.
+      placeholder: '0.9.2'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Edge
+        - Brave
+        - Firefox
+        - Other Chromium-based
+    validations:
+      required: true
+
+  - type: dropdown
+    id: instance
+    attributes:
+      label: Which instance are you pointing at?
+      options:
+        - linkerlee.com
+        - A self-hosted instance
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: |
+        From the popup's devtools (right-click the popup → Inspect) or the service worker
+        console in chrome://extensions.
+        **Redact your API token and any private URLs.**
+      render: shell
