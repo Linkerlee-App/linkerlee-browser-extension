@@ -25,4 +25,15 @@ Click the extension icon on any page. The popup pre-fills the URL and title, sho
 npm run dev      # Vite dev server with HMR (load dist/ as unpacked extension)
 npm run build    # one-shot production build
 npm run typecheck
+npm test         # Vitest, once
+npm run test:watch
 ```
+
+There is no CI, so these are the only checks a change gets — run them before
+opening a PR, along with `npx web-ext lint --source-dir=dist --self-hosted`
+(0 errors; 2 warnings are the known Firefox baseline).
+
+Tests cover the pure logic in `src/lib` — the draft merge, the prune, the
+stored-record validation — the parts where a mistake quietly loses or deletes
+a user's tags. UI wiring in `popup.ts` is not covered; that still needs the
+extension loaded from `dist/` in a browser.
